@@ -1,7 +1,11 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { Classes } from './classes/index.js';
-const app = admin.initializeApp();
+
+
+const app = 
+admin.initializeApp();
+
 const db = app.firestore();
 
 const cls = new Classes();
@@ -77,7 +81,7 @@ export const registerAdmin = functions.https.onRequest(async (req, res) => {
                 const hash = cls.hash(pwd);
                 const data = req.body;
                 data.hash = hash;
-                data.timeStamp = admin.firestore.Timestamp;
+                data.timeStamp =admin.firestore.Timestamp.now();
                 data.isAdmin = true;
                 await db.collection('user').doc(username).create(data);
 
@@ -264,7 +268,7 @@ export const registerUser = functions.https.onRequest(async (req, res) => {
                 const hash = cls.hash(pwd);
                 const data = req.body;
                 data.pwd = hash;
-                data.timeStamp = admin.firestore.Timestamp;
+                data.timeStamp = admin.firestore.Timestamp.now();
                 data.isAdmin = false;
                 await db.collection('user').doc(username).create(data);
 
