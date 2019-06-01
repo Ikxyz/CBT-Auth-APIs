@@ -1,5 +1,4 @@
-import * as bcrypt from 'bcrypt';
-
+const bcrypt = require('bcrypt');
 
 /** 
  * @Classes contains help functions for easy development
@@ -12,23 +11,22 @@ export class Classes {
 
    public saltRound:number = 10;
 
-    constructor() {
-    }
-
 
     hash(pwd: string) {
         let _hash = null;
         bcrypt.hash(pwd, this.saltRound, (err: any, hash: string) => {
-            if (err) return console.log(err);
+            if (err) console.log(err);
             _hash = hash;
         });
         return _hash;
     }
 
-    compare(pwd: string,hash:string):Boolean{
-       return bcrypt.compare(pwd, hash, (err: any, res: boolean) => { 
-            return res;
-        });
+    compare(pwd: string, hash: string): Boolean{
+        let result = false;
+         bcrypt.compare(pwd, hash, (err: any, res: boolean) => { 
+            result = res;
+       });
+        return result
     }
 
 }
