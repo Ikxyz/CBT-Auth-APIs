@@ -14,16 +14,16 @@ const cls = new Classes();
 
 /**
  *  @login is a [post_request] request that authenticate a user and return  the user data
- *  @param  [email] of type [String]
+ *  @param  [username] of type [String]
  *  @param  [pwd] of type [String]
  * 
  */
 export const login = functions.https.onRequest(async (req, res) => {
-    const email = req.body.email;
+    const username = req.body.username;
     const pwd = req.body.pwd;
 
     try {
-        const user = await db.collection('user').doc(email).get();
+        const user = await db.collection('user').doc(username).get();
         if (user.exists) {
             const userData: any = user.data();
             const origin: string = userData.hash;
@@ -50,23 +50,24 @@ export const login = functions.https.onRequest(async (req, res) => {
 
 
 /**
- *  @register is a [post_request] request that create a new user record in the database
- *  @param  [email] of type [String]
+ *  @registerAdmin is a [post_request] request that create a new user record in the database
+ *  @param  [username] of type [String]
  *          [pwd] of type [String]
+ *  [...other]
  * 
  */
-export const register = functions.https.onRequest(async (req, res) => {
-    let email: string = req.body.email;
+export const registerAdmin = functions.https.onRequest(async (req, res) => {
+    let username: string = req.body.username;
     const pwd: string = req.body.pwd;
 
-    if (!email && !pwd)
-        return res.status(400).send({ message: 'email and password can\'t be empty', status: 400 });
+    if (!username && !pwd)
+        return res.status(400).send({ message: 'username and password can\'t be empty', status: 400 });
 
 
-    email = email.trim().toLowerCase();
+    username = username.trim().toLowerCase();
 
     try {
-        const user = await db.collection('user').doc(email).get();
+        const user = await db.collection('user').doc(username).get();
         if (user.exists) {
             return res.status(200).send({ message: 'user already exist', status: false });
 
@@ -74,8 +75,11 @@ export const register = functions.https.onRequest(async (req, res) => {
 
             try {
                 const hash = cls.hash(pwd);
-                const data = { email: email, hash: hash, timeStamp: admin.firestore.Timestamp };
-                await db.collection('user').doc(email).create(data);
+                const data = req.body;
+                data.hash = hash;
+                data.timeStamp = admin.firestore.Timestamp;
+                data.isAdmin = true;
+                await db.collection('user').doc(username).create(data);
 
                 return res.status(201).send({ message: 'error occurred while creating account', status: true });
 
@@ -96,12 +100,12 @@ export const register = functions.https.onRequest(async (req, res) => {
 
 
 /**
- *  @postExamById is a [get_request] request that returns a json data
+ *  @getExamById is a [get_request] request that returns a json data
  * 
  *  @param  [id] of type [String]
  * 
  */
-export const postExamById = functions.https.onRequest(async (req, res) => {
+export const getExamById = functions.https.onRequest(async (req, res) => {
     const id: string = req.params().id;
 
     if (!id)
@@ -227,6 +231,55 @@ export const addSchool = functions.https.onRequest(async (req, res) => {
         return res.status(500).send({ message: 'error ocurred creating data', status: 500 })
     }
 
+});
 
+
+
+
+/**
+ *  @registerUser is a [post_request] request that create a new user record in the database
+ *  @param  [username] of type [String]
+ *          [pwd] of type [String]
+ *  [...other]
+ * 
+ */
+export const registerUser = functions.https.onRequest(async (req, res) => {
+    let username: string = req.body.username;
+    const pwd: string = req.body.pwd;
+
+    if (!username && !pwd)
+        return res.status(400).send({ message: 'username and password can\'t be empty', status: 400 });
+
+
+    username = username.trim().toLowerCase();
+
+    try {
+        const user = await db.collection('user').doc(username).get();
+        if (user.exists) {
+            return res.status(200).send({ message: 'user already exist', status: false });
+
+        } else {
+
+            try {
+                const hash = cls.hash(pwd);
+                const data = req.body;
+                data.pwd = hash;
+                data.timeStamp = admin.firestore.Timestamp;
+                data.isAdmin = false;
+                await db.collection('user').doc(username).create(data);
+
+                return res.status(201).send({ message: 'error occurred while creating account', status: true });
+
+            } catch (err) {
+                console.error(err);
+                return res.status(500).send({ message: 'error occurred while creating account', status: 500 });
+            }
+
+
+        }
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
 
 });
