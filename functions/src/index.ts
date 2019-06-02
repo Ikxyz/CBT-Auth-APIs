@@ -3,10 +3,11 @@ import * as admin from 'firebase-admin';
 import { Classes } from './classes/index.js';
 
 
-const app = 
-admin.initializeApp();
 
-const db = app.firestore();
+admin.initializeApp({
+    databaseURL: 'https://computerbasetesting.firebaseio.com'});
+
+const db = admin.firestore();
 
 const cls = new Classes();
 
@@ -30,21 +31,21 @@ export const login = functions.https.onRequest(async (req, res) => {
         const user = await db.collection('user').doc(username).get();
         if (user.exists) {
             const userData: any = user.data();
-            const origin: string = userData.hash;
-            const result: Boolean = cls.compare(pwd, origin);
-
+           
+            const result: Boolean =  cls.compare(pwd, userData.pwd);
+           
             if (result) {
-                res.send(200).send(true);
+              return  res.status(200).send({status:200,message:'success'});
             } else {
-                res.send(200).send(false);
+                return   res.status(401).send({status:401,message:'incorrect username or password'});
             }
 
         } else {
-            res.status(404).send({ message: 'user does not exist', status: 404 });
+            return res.status(404).send({ message: 'user does not exist', status: 404 });
         }
     } catch (err) {
         console.error(err);
-        res.status(500).send({ message: 'server error', status: 500 });
+        return   res.status(500).send({ message: 'server error', status: 500 });
     }
 
 });
@@ -78,14 +79,14 @@ export const registerAdmin = functions.https.onRequest(async (req, res) => {
         } else {
 
             try {
-                const hash = cls.hash(pwd);
+                const hash =  cls.hash(pwd);
                 const data = req.body;
-                data.hash = hash;
+                data.pwd = hash;
                 data.timeStamp =admin.firestore.Timestamp.now();
                 data.isAdmin = true;
                 await db.collection('user').doc(username).create(data);
 
-                return res.status(201).send({ message: 'error occurred while creating account', status: true });
+                return res.status(201).send({ message: 'account created', status: true });
 
             } catch (err) {
                 console.error(err);
