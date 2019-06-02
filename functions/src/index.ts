@@ -24,6 +24,7 @@ const cls = new Classes();
  * 
  */
 export const login = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
     const username = req.body.username;
     const pwd = req.body.pwd;
 
@@ -35,7 +36,7 @@ export const login = functions.https.onRequest(async (req, res) => {
             const result: Boolean =  cls.compare(pwd, userData.pwd);
            
             if (result) {
-              return  res.status(200).send({status:200,message:'success'});
+              return  res.status(200).send({status:200,message:'success',data:userData});
             } else {
                 return   res.status(401).send({status:401,message:'incorrect username or password'});
             }
@@ -62,6 +63,8 @@ export const login = functions.https.onRequest(async (req, res) => {
  * 
  */
 export const register = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
     let username: string = req.body.username;
     const pwd: string = req.body.pwd;
 
@@ -85,7 +88,7 @@ export const register = functions.https.onRequest(async (req, res) => {
                 data.timeStamp =admin.firestore.Timestamp.now();
                 await db.collection('user').doc(username).create(data);
 
-                return res.status(201).send({ message: 'account created', status: true });
+                return res.status(201).send({ message: 'account created', status: true,data:data});
 
             } catch (err) {
                 console.error(err);
@@ -112,6 +115,7 @@ export const register = functions.https.onRequest(async (req, res) => {
  * 
  */
 export const postExam = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
 
     const data = req.body;
 
@@ -153,6 +157,8 @@ export const postExam = functions.https.onRequest(async (req, res) => {
  * 
  */
 export const getExamById = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
     const id: string = req.params().id;
 
     if (!id)
@@ -184,6 +190,8 @@ export const getExamById = functions.https.onRequest(async (req, res) => {
  * 
  */
 export const getExamByYear = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
     const year: number = req.params().year;
 
     if (!year)
@@ -209,6 +217,7 @@ export const getExamByYear = functions.https.onRequest(async (req, res) => {
  * 
  */
 export const getAllExam = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
 
     try {
         const exam = await db.collection('examination').get();
@@ -236,6 +245,7 @@ export const getAllExam = functions.https.onRequest(async (req, res) => {
  * 
  */
 export const addSchool = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
 
     const data = req.body;
 
