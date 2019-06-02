@@ -65,7 +65,7 @@ export const registerAdmin = functions.https.onRequest(async (req, res) => {
     let username: string = req.body.username;
     const pwd: string = req.body.pwd;
 
-    if (!username && !pwd)
+    if (!username || !pwd)
         return res.status(400).send({ message: 'username and password can\'t be empty', status: 400 });
 
 
