@@ -103,6 +103,49 @@ export const register = functions.https.onRequest(async (req, res) => {
 
 
 
+
+
+/**
+ *  @postExam is a [post_request] request that create a new record in exam record in database 
+ * 
+ *  @param  [object]
+ * 
+ */
+export const postExam = functions.https.onRequest(async (req, res) => {
+
+    const data = req.body;
+
+     //check for null data
+    if (!data) return res.status(400).send({ message: 'receive an empty data', status: 400 })
+
+    // //check for valid exam id and other data
+    // const valid = cls.validateExam(data);
+    // console.info(valid);
+    // if (valid!== true) return res.status(400).send({ message: "received incomplete data", status: 400,data:valid.details})
+ 
+    //secure answer
+    data.answer = cls.secureAnswer(data.answer);
+
+
+    try {
+        await db.collection("examination").doc(data.id).set(data);
+
+        return res.status(201).send({ message: 'success', status: 200, data });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'error ocurred creating data', status: 500 })
+    }
+
+
+
+});
+
+
+
+
+
+
+
 /**
  *  @getExamById is a [get_request] request that returns a json data
  * 
@@ -179,32 +222,6 @@ export const getAllExam = functions.https.onRequest(async (req, res) => {
 
 
 
-/**
- *  @postExam is a [post_request] request that create a new record in exam record in database 
- * 
- *  @param  [object]
- * 
- */
-export const postExam = functions.https.onRequest(async (req, res) => {
-
-    const data = req.body;
-
-    if (!data) return res.status(400).send({ message: 'receive an empty data', status: 400 })
-
-    if (!data.id) return res.status(400).send({ message: 'exam id not found', status: 400 })
-
-    try {
-        await db.collection("examination").doc(data.id).set(data);
-
-        return res.status(201).send({ message: 'success', status: 200, data });
-    } catch (err) {
-        console.error(err);
-        return res.status(500).send({ message: 'error ocurred creating data', status: 500 })
-    }
-
-
-
-});
 
 
 
