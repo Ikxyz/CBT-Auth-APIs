@@ -26,13 +26,12 @@ export class Classes {
    return validate.validateExam(data);
   }
   
-  secureAnswer(data:Array<string>):Array<any> {
-    const newData = data.map((e:any) => {
-      const x = e.toString().trim().toLocaleLowerCase();
-      if (x) {
-        return this.hash(x);
-      }
-      return
+  secureAnswer(data:any): Array<any> {
+    const newData = data.map((e: any) => {
+      const x = this.hash(e.answer.toString().trim().toLocaleLowerCase());
+      e.answer = x;
+        return e;
+      
     });
     return newData;
   }

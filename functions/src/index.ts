@@ -36,6 +36,7 @@ export const login = functions.https.onRequest(async (req, res) => {
             const result: Boolean =  cls.compare(pwd, userData.pwd);
            
             if (result) {
+                userData.pwd = null;
               return  res.status(200).send({status:200,message:'success',data:userData});
             } else {
                 return   res.status(401).send({status:401,message:'incorrect username or password'});
@@ -117,18 +118,19 @@ export const register = functions.https.onRequest(async (req, res) => {
 export const postExam = functions.https.onRequest(async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
 
-    const data = req.body;
-
+    const data = JSON.parse(req.body);
+    console.info(data);
      //check for null data
     if (!data) return res.status(400).send({ message: 'receive an empty data', status: 400 })
 
+    
     // //check for valid exam id and other data
     // const valid = cls.validateExam(data);
     // console.info(valid);
     // if (valid!== true) return res.status(400).send({ message: "received incomplete data", status: 400,data:valid.details})
  
     //secure answer
-    data.answer = cls.secureAnswer(data.answer);
+    data.question = cls.secureAnswer(data.question);
 
 
     try {
