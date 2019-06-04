@@ -5,7 +5,8 @@ import { Classes } from './classes/index.js';
 
 
 admin.initializeApp({
-    databaseURL: 'https://computerbasetesting.firebaseio.com'});
+    databaseURL: 'https://computerbasetesting.firebaseio.com'
+});
 
 const db = admin.firestore();
 
@@ -32,14 +33,14 @@ export const login = functions.https.onRequest(async (req, res) => {
         const user = await db.collection('user').doc(username).get();
         if (user.exists) {
             const userData: any = user.data();
-           
-            const result: Boolean =  cls.compare(pwd, userData.pwd);
-           
+
+            const result: Boolean = cls.compare(pwd, userData.pwd);
+
             if (result) {
                 userData.pwd = null;
-              return  res.status(200).send({status:200,message:'success',data:userData});
+                return res.status(200).send({ status: 200, message: 'success', data: userData });
             } else {
-                return   res.status(401).send({status:401,message:'incorrect username or password'});
+                return res.status(401).send({ status: 401, message: 'incorrect username or password' });
             }
 
         } else {
@@ -47,7 +48,7 @@ export const login = functions.https.onRequest(async (req, res) => {
         }
     } catch (err) {
         console.error(err);
-        return   res.status(500).send({ message: 'server error', status: 500 });
+        return res.status(500).send({ message: 'server error', status: 500 });
     }
 
 });
@@ -83,13 +84,13 @@ export const register = functions.https.onRequest(async (req, res) => {
         } else {
 
             try {
-                const hash =  cls.hash(pwd);
+                const hash = cls.hash(pwd);
                 const data = req.body;
                 data.pwd = hash;
-                data.timeStamp =admin.firestore.Timestamp.now();
+                data.timeStamp = admin.firestore.Timestamp.now();
                 await db.collection('user').doc(username).create(data);
 
-                return res.status(201).send({ message: 'account created', status: true,data:data});
+                return res.status(201).send({ message: 'account created', status: true, data: data });
 
             } catch (err) {
                 console.error(err);
@@ -120,21 +121,24 @@ export const postExam = functions.https.onRequest(async (req, res) => {
 
     const data = JSON.parse(req.body);
     console.info(data);
-     //check for null data
+    //check for null data
     if (!data) return res.status(400).send({ message: 'receive an empty data', status: 400 })
 
-    
+
     // //check for valid exam id and other data
     // const valid = cls.validateExam(data);
     // console.info(valid);
     // if (valid!== true) return res.status(400).send({ message: "received incomplete data", status: 400,data:valid.details})
- 
+
     //secure answer
     data.question = cls.secureAnswer(data.question);
 
 
     try {
-        await db.collection("examination").doc(data.id).set(data);
+        const bat = db.batch();
+        bat.set(db.collection("examination").doc(data.id), data);
+        bat.set(db.collection("user").doc(data.author).collection('examination').doc(data.id), data);
+        await bat.commit();
 
         return res.status(201).send({ message: 'success', status: 200, data });
     } catch (err) {
@@ -161,14 +165,20 @@ export const postExam = functions.https.onRequest(async (req, res) => {
 export const getExamById = functions.https.onRequest(async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
 
-    const id: string = req.params().id;
+    const id: string = req.query.id;
 
     if (!id)
         return res.status(400).send({ message: 'request should contain Id', status: 400 });
     try {
         const data = await db.collection('examination').doc(id).get();
         if (data.exists) {
-            return res.status(200).send(data);
+            const output: any = data.data();
+           
+            output.question = output.question.map((ques: any) => {
+                ques.answer = cls.reCalibrateAnswer(ques.options, ques.answer);
+                return ques;
+             });
+            return res.status(200).send(output);
 
         } else {
             return res.status(404).send({ message: 'exam record does not exist', status: 404 });
@@ -185,6 +195,54 @@ export const getExamById = functions.https.onRequest(async (req, res) => {
 
 
 
+
+
+
+/**
+ *  @getExamByAuthor is a [get_request] request that returns an array of json data queried from database by [author] 
+ * 
+ *  @param  [author] of type [String]
+ * 
+ */
+export const getExamByAuthor = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    const author: number = req.query.author;
+
+    if (!author)
+        return res.status(400).send({ message: 'request should contain author id', status: 400 });
+
+    try {
+        const examArray = await db.collection('examination').where('author', "==", author).get();
+        const data = examArray.docs.map((examSheet_) => {
+            const _examSheet = examSheet_.data();
+            _examSheet.question = _examSheet.question.map((ques: any) => {
+                ques.answer = cls.reCalibrateAnswer(ques.options, ques.answer);
+                return ques;
+             });
+           // newExam.question = cls.reCalibrateAnswer(newExam.question);
+            return _examSheet;
+        });
+        console.info(data);
+        return res.status(200).send(data);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
+
+
+
+
+
+
+
+
+
+
+
+
 /**
  *  @getExamByYear is a [get_request] request that returns an array of json data queried from database by [year] 
  * 
@@ -194,15 +252,20 @@ export const getExamById = functions.https.onRequest(async (req, res) => {
 export const getExamByYear = functions.https.onRequest(async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
 
-    const year: number = req.params().year;
+    const year: number = req.query.year;
 
     if (!year)
         return res.status(400).send({ message: 'request should contain year', status: 400 });
 
-
     try {
-        const exam = await db.collection('examination').where('year', "==", req).get();
-        return res.status(200).send(exam.docs);
+        const examArray = await db.collection('examination').where('year', "==", req).get();
+        const data = examArray.docs.map((exam) => {
+            const newExam = exam.data();
+           // newExam.question = cls.reCalibrateAnswer(newExam.question);
+            return newExam;
+        });
+        console.info(data);
+        return res.status(200).send(data);
     } catch (err) {
         console.error(err);
         return res.status(500).send({ message: 'server error', status: 500 });
@@ -213,7 +276,7 @@ export const getExamByYear = functions.https.onRequest(async (req, res) => {
 
 
 /**
- *  @getExam is a [get_request] request that returns an array of json data of all the exam record created 
+ *  @getAllExam is a [get_request] request that returns an array of json data of all the exam record created 
  * 
  *  @param  [none]
  * 
@@ -222,8 +285,14 @@ export const getAllExam = functions.https.onRequest(async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
 
     try {
-        const exam = await db.collection('examination').get();
-        return res.status(200).send(exam.docs);
+        const examList = await db.collection('examination').get();
+        const data = examList.docs.map((exam) => {
+            const newExam = exam.data();
+          //  newExam.question = cls.reCalibrateAnswer(newExam.question);
+            return newExam;
+        });
+        console.info(data);
+        return res.status(200).send(data);
     } catch (err) {
         console.error(err);
         return res.status(500).send({ message: 'server error', status: 500 });
