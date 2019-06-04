@@ -1,32 +1,63 @@
 const bcrypt = require('bcrypt');
-
+import { Validate } from "./validator";
 /** 
  * @Classes contains help functions for easy development
  *  
  * @hash take [password] of type [String] and returns a new #hashed String
  * 
  */
-
+const validate = new Validate();
 export class Classes {
 
-   public saltRound:number = 10;
+  public saltRound: number = 10;
 
 
-    hash(pwd: string) {
-        let _hash = null;
-        bcrypt.hash(pwd, this.saltRound, (err: any, hash: string) => {
-            if (err) console.log(err);
-            _hash = hash;
-        });
-        return _hash;
-    }
+  hash(pwd: string): string {
 
-    compare(pwd: string, hash: string): Boolean{
-        let result = false;
-         bcrypt.compare(pwd, hash, (err: any, res: boolean) => { 
-            result = res;
+    return bcrypt.hashSync(pwd, this.saltRound);
+  }
+
+  compare(pwd: string, origin: string): Boolean {
+
+    return bcrypt.compareSync(pwd, origin);
+  }
+
+  validateExam(data: object) {
+    return validate.validateExam(data);
+  }
+
+  secureAnswer(data: any): Array<any> {
+    const newData = data.map((e: any) => {
+      const x = this.hash(e.answer.toString().trim().toLocaleLowerCase());
+      e.answer = x;
+      return e;
+
+    });
+    return newData;
+  }
+
+  reCalibrateAnswer(options: any,answerHash:string):string {
+    let answer = '';
+    options.forEach((opt:string) => {
+      
+      if (bcrypt.compareSync(this.hash(opt.toString().trim().toLocaleLowerCase()), answerHash))   {
+        answer = opt;
+      }
+      
+    });
+    return answer;
+  }
+
+  removeAnswer(examinationSheet: any):any {
+    examinationSheet.question = examinationSheet.question.map((question:any) => {
+        question.answer = '';
+        return question;
        });
-        return result
-    }
+    return examinationSheet;
+  }
+ 
+  generateUid(len:number) {
+    return Math.random().toString(36).substr(2, len);
+  }
 
 }

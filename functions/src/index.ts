@@ -1,8 +1,14 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import { Classes } from './classes/index.js';
-const app = admin.initializeApp();
-const db = app.firestore();
+
+
+
+admin.initializeApp({
+    databaseURL: 'https://computerbasetesting.firebaseio.com'
+});
+
+const db = admin.firestore();
 
 const cls = new Classes();
 
@@ -19,6 +25,7 @@ const cls = new Classes();
  * 
  */
 export const login = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
     const username = req.body.username;
     const pwd = req.body.pwd;
 
@@ -26,21 +33,22 @@ export const login = functions.https.onRequest(async (req, res) => {
         const user = await db.collection('user').doc(username).get();
         if (user.exists) {
             const userData: any = user.data();
-            const origin: string = userData.hash;
-            const result: Boolean = cls.compare(pwd, origin);
+
+            const result: Boolean = cls.compare(pwd, userData.pwd);
 
             if (result) {
-                res.send(200).send(true);
+                userData.pwd = null;
+                return res.status(200).send({ status: 200, message: 'success', data: userData });
             } else {
-                res.send(200).send(false);
+                return res.status(401).send({ status: 401, message: 'incorrect username or password' });
             }
 
         } else {
-            res.status(404).send({ message: 'user does not exist', status: 404 });
+            return res.status(404).send({ message: 'user does not exist', status: 404 });
         }
     } catch (err) {
         console.error(err);
-        res.status(500).send({ message: 'server error', status: 500 });
+        return res.status(500).send({ message: 'server error', status: 500 });
     }
 
 });
@@ -50,17 +58,19 @@ export const login = functions.https.onRequest(async (req, res) => {
 
 
 /**
- *  @registerAdmin is a [post_request] request that create a new user record in the database
+ *  @register is a [post_request] request that create a new user record in the database
  *  @param  [username] of type [String]
  *          [pwd] of type [String]
  *  [...other]
  * 
  */
-export const registerAdmin = functions.https.onRequest(async (req, res) => {
+export const register = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
     let username: string = req.body.username;
     const pwd: string = req.body.pwd;
 
-    if (!username && !pwd)
+    if (!username || !pwd)
         return res.status(400).send({ message: 'username and password can\'t be empty', status: 400 });
 
 
@@ -76,12 +86,11 @@ export const registerAdmin = functions.https.onRequest(async (req, res) => {
             try {
                 const hash = cls.hash(pwd);
                 const data = req.body;
-                data.hash = hash;
-                data.timeStamp = admin.firestore.Timestamp;
-                data.isAdmin = true;
+                data.pwd = hash;
+                data.timeStamp = admin.firestore.Timestamp.now();
                 await db.collection('user').doc(username).create(data);
 
-                return res.status(201).send({ message: 'error occurred while creating account', status: true });
+                return res.status(201).send({ message: 'account created', status: true, data: data });
 
             } catch (err) {
                 console.error(err);
@@ -99,80 +108,6 @@ export const registerAdmin = functions.https.onRequest(async (req, res) => {
 
 
 
-/**
- *  @getExamById is a [get_request] request that returns a json data
- * 
- *  @param  [id] of type [String]
- * 
- */
-export const getExamById = functions.https.onRequest(async (req, res) => {
-    const id: string = req.params().id;
-
-    if (!id)
-        return res.status(400).send({ message: 'request should contain Id', status: 400 });
-    try {
-        const data = await db.collection('examination').doc(id).get();
-        if (data.exists) {
-            return res.status(200).send(data);
-
-        } else {
-            return res.status(404).send({ message: 'exam record does not exist', status: 404 });
-
-        }
-    } catch (err) {
-        console.error(err);
-        return res.status(500).send({ message: 'server error', status: 500 });
-    }
-
-});
-
-
-
-
-
-/**
- *  @getExamByYear is a [get_request] request that returns an array of json data queried from database by [year] 
- * 
- *  @param  [year] of type [Number]
- * 
- */
-export const getExamByYear = functions.https.onRequest(async (req, res) => {
-    const year: number = req.params().year;
-
-    if (!year)
-        return res.status(400).send({ message: 'request should contain year', status: 400 });
-
-
-    try {
-        const exam = await db.collection('examination').where('year', "==", req).get();
-        return res.status(200).send(exam.docs);
-    } catch (err) {
-        console.error(err);
-        return res.status(500).send({ message: 'server error', status: 500 });
-    }
-
-});
-
-
-
-/**
- *  @getExam is a [get_request] request that returns an array of json data of all the exam record created 
- * 
- *  @param  [none]
- * 
- */
-export const getAllExam = functions.https.onRequest(async (req, res) => {
-
-    try {
-        const exam = await db.collection('examination').get();
-        return res.status(200).send(exam.docs);
-    } catch (err) {
-        console.error(err);
-        return res.status(500).send({ message: 'server error', status: 500 });
-    }
-
-});
-
 
 
 /**
@@ -182,15 +117,28 @@ export const getAllExam = functions.https.onRequest(async (req, res) => {
  * 
  */
 export const postExam = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
 
-    const data = req.body;
-
+    const data = JSON.parse(req.body);
+    console.info(data);
+    //check for null data
     if (!data) return res.status(400).send({ message: 'receive an empty data', status: 400 })
 
-    if (!data.id) return res.status(400).send({ message: 'exam id not found', status: 400 })
+
+    // //check for valid exam id and other data
+    // const valid = cls.validateExam(data);
+    // console.info(valid);
+    // if (valid!== true) return res.status(400).send({ message: "received incomplete data", status: 400,data:valid.details})
+
+    //secure answer
+    data.question = cls.secureAnswer(data.question);
+
 
     try {
-        await db.collection("examination").doc(data.id).set(data);
+        const bat = db.batch();
+        bat.set(db.collection("examination").doc(data.id), data);
+        bat.set(db.collection("user").doc(data.author).collection('examination').doc(data.id), data);
+        await bat.commit();
 
         return res.status(201).send({ message: 'success', status: 200, data });
     } catch (err) {
@@ -209,12 +157,292 @@ export const postExam = functions.https.onRequest(async (req, res) => {
 
 
 /**
+ *  @getExamById is a [get_request] request that returns a json data
+ * 
+ *  @param  [id] of type [String]
+ * 
+ */
+export const getExamById = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    const id: string = req.query.id;
+
+    if (!id)
+        return res.status(400).send({ message: 'request should contain Id', status: 400 });
+    try {
+        const data = await db.collection('examination').doc(id).get();
+        if (data.exists) {
+            const output: any = data.data();
+
+            output.question = output.question.map((ques: any) => {
+                ques.answer = cls.reCalibrateAnswer(ques.options, ques.answer);
+                return ques;
+            });
+            return res.status(200).send(output);
+
+        } else {
+            return res.status(404).send({ message: 'exam record does not exist', status: 404 });
+
+        }
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
+
+
+
+
+
+
+
+
+
+/**
+ *  @createExamSession is a [get_request] request that returns a json data
+ * 
+ *  @param  [id] of type [String]
+ * 
+ */
+export const createExamSession = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    const id: string = req.query.id;
+    const sessionId: string = req.query.sessionId;
+
+    if (!id)
+        return res.status(400).send({ message: 'request should contain Id', status: 400 });
+    try {
+        const data = await db.collection('examination').doc(id).get();
+        const session = {
+            id: sessionId,
+            //TODO: collect teacher info and validate
+            overSite: 'not-set',
+            examinationId: id,
+            student: [],
+            finished: '',
+            startTime: '',
+            pausedTime: [],
+
+        };
+        await db.collection('examinationSession').doc(sessionId).set(session);
+        if (data.exists) {
+            const output: any = data.data();
+
+            output.question = output.question.map((ques: any) => {
+                ques.answer = '';
+                return ques;
+            });
+            return res.status(200).send({ data: { session, examSheet: output }, message: "success", status: 200 });
+
+        } else {
+            return res.status(404).send({ message: 'exam record does not exist', status: 404 });
+
+        }
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
+
+
+
+/**
+ *  @joinExamSession is a [post_request] request that returns an examinationSheet of json data queried from database by [examinationId] 
+ * 
+ *  @param  [examinationId] of type [String]
+ *  @param  [StudentData] of type [jsonObject]
+ * 
+ * 
+ * {
+ * sessionId:'',
+ * student: {firstName: '', lastName: '', seatId: '',timeStamp: ''},
+ * }
+ * 
+ */
+export const joinExamSession = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    const newSession = req.body;
+
+    if (!newSession)
+        return res.status(400).send({ message: 'request should contain author id', status: 400 });
+
+    try {
+
+        // Get and validate session
+        const result = await db.collection('examinationSession').doc(newSession.sessionId).get();
+        if (!result.exists) {
+            return res.status(404).send({ message: 'examination id does not exist', status: 404 });
+        }
+
+
+        const session: any = result.data();
+        const bat = db.batch();
+        const examinationId = session.examinationId;
+        newSession.student.username = `${newSession.student.firstName}${newSession.student.lastName}${cls.generateUid(5)}`
+
+        // Get ExaminationSheet and secure answers
+        let examSheet = await db.collection('examination').doc(examinationId).get();
+        examSheet = cls.removeAnswer(examSheet.data());
+
+        const studentSessionData = {
+            examinationId: examinationId,
+            sessionId: newSession.sessionId,
+            studentId: newSession.student.username,
+            examinationSheet: examSheet,
+            joinTime: admin.firestore.Timestamp.now(),
+            endTime: '',
+            startTime: '',
+            isEnded: false,
+            publicIp: '',
+            privateIp: '',
+        };
+
+        // Update Examination Student
+        bat.create(db.collection('examinationSession').doc(newSession.sessionId).collection('student').doc(newSession.student.username), { studentInfo: newSession.student, session: studentSessionData });
+
+        // create Student Account
+        bat.create(db.collection('student').doc(newSession.student.username), newSession.student);
+
+        //create copy of examSheet on user profile
+        bat.create(db.collection('student').doc(newSession.student.username).collection('examinationSession').doc(newSession.sessionId),  studentSessionData );
+
+        await bat.commit();
+
+        return res.status(200).send({ data: { student: newSession.student, examinationSheet: examSheet, session: studentSessionData }, status: 200, message: 'success' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
+
+
+
+
+
+
+/**
+ *  @getExamByAuthor is a [get_request] request that returns an array of json data queried from database by [author] 
+ * 
+ *  @param  [author] of type [String]
+ * 
+ */
+export const getExamByAuthor = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    const author: number = req.query.author;
+
+    if (!author)
+        return res.status(400).send({ message: 'request should contain author id', status: 400 });
+
+    try {
+        const examArray = await db.collection('examination').where('author', "==", author).get();
+        const data = examArray.docs.map((examSheet_) => {
+            const _examSheet = examSheet_.data();
+            _examSheet.question = _examSheet.question.map((ques: any) => {
+                ques.answer = cls.reCalibrateAnswer(ques.options, ques.answer);
+                return ques;
+            });
+            // newExam.question = cls.reCalibrateAnswer(newExam.question);
+            return _examSheet;
+        });
+        return res.status(200).send({ data });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ *  @getExamByYear is a [get_request] request that returns an array of json data queried from database by [year] 
+ * 
+ *  @param  [year] of type [Number]
+ * 
+ */
+export const getExamByYear = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    const year: number = req.query.year;
+
+    if (!year)
+        return res.status(400).send({ message: 'request should contain year', status: 400 });
+
+    try {
+        const examArray = await db.collection('examination').where('year', "==", req).get();
+        const data = examArray.docs.map((exam) => {
+            const newExam = exam.data();
+            // newExam.question = cls.reCalibrateAnswer(newExam.question);
+            return newExam;
+        });
+        console.info(data);
+        return res.status(200).send(data);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
+
+
+
+/**
+ *  @getAllExam is a [get_request] request that returns an array of json data of all the exam record created 
+ * 
+ *  @param  [none]
+ * 
+ */
+export const getAllExam = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    try {
+        const examList = await db.collection('examination').get();
+        const data = examList.docs.map((exam) => {
+            const newExam = exam.data();
+            //  newExam.question = cls.reCalibrateAnswer(newExam.question);
+            return newExam;
+        });
+        console.info(data);
+        return res.status(200).send(data);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
+
+
+
+
+
+
+
+
+
+
+/**
  *  @postSchool is a [post_request] request that create a new school record in exam record in database 
  * 
  *  @param  [object]
  * 
  */
 export const addSchool = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
 
     const data = req.body;
 
@@ -236,50 +464,3 @@ export const addSchool = functions.https.onRequest(async (req, res) => {
 
 
 
-/**
- *  @registerUser is a [post_request] request that create a new user record in the database
- *  @param  [username] of type [String]
- *          [pwd] of type [String]
- *  [...other]
- * 
- */
-export const registerUser = functions.https.onRequest(async (req, res) => {
-    let username: string = req.body.username;
-    const pwd: string = req.body.pwd;
-
-    if (!username && !pwd)
-        return res.status(400).send({ message: 'username and password can\'t be empty', status: 400 });
-
-
-    username = username.trim().toLowerCase();
-
-    try {
-        const user = await db.collection('user').doc(username).get();
-        if (user.exists) {
-            return res.status(200).send({ message: 'user already exist', status: false });
-
-        } else {
-
-            try {
-                const hash = cls.hash(pwd);
-                const data = req.body;
-                data.pwd = hash;
-                data.timeStamp = admin.firestore.Timestamp;
-                data.isAdmin = false;
-                await db.collection('user').doc(username).create(data);
-
-                return res.status(201).send({ message: 'error occurred while creating account', status: true });
-
-            } catch (err) {
-                console.error(err);
-                return res.status(500).send({ message: 'error occurred while creating account', status: 500 });
-            }
-
-
-        }
-    } catch (err) {
-        console.error(err);
-        return res.status(500).send({ message: 'server error', status: 500 });
-    }
-
-});
