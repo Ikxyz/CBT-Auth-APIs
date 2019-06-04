@@ -198,6 +198,57 @@ export const getExamById = functions.https.onRequest(async (req, res) => {
 
 
 
+
+/**
+ *  @getCreateExamSession is a [get_request] request that returns a json data
+ * 
+ *  @param  [id] of type [String]
+ * 
+ */
+export const getCreateExamSession = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    const id: string = req.query.id;
+    const sessionId: string = req.query.sessionId;
+
+    if (!id)
+        return res.status(400).send({ message: 'request should contain Id', status: 400 });
+    try {
+        const data = await db.collection('examination').doc(id).get();
+        const session = await db.collection('examinationSession').doc(sessionId).set({
+            id: sessionId,
+            //TODO: collect teacher info and validate
+            overSite: 'not-set',
+            
+
+        });
+        if (data.exists) {
+            const output: any = data.data();
+           
+            output.question = output.question.map((ques: any) => {
+                ques.answer = '';
+                return ques;
+             });
+            return res.status(200).send({sessionId,data:output});
+
+        } else {
+            return res.status(404).send({ message: 'exam record does not exist', status: 404 });
+
+        }
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
+
+
+
+
+
+
+
+
 /**
  *  @getExamByAuthor is a [get_request] request that returns an array of json data queried from database by [author] 
  * 
@@ -224,7 +275,7 @@ export const getExamByAuthor = functions.https.onRequest(async (req, res) => {
             return _examSheet;
         });
         console.info(data);
-        return res.status(200).send(data);
+        return res.status(200).send({data});
     } catch (err) {
         console.error(err);
         return res.status(500).send({ message: 'server error', status: 500 });

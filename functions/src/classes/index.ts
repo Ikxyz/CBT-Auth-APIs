@@ -47,15 +47,6 @@ export class Classes {
     });
     return answer;
   }
-
-  removeAnswer(data: any): Array<any> {
-    const newData = data.map((e: any) => {
-
-      e.answer = null;
-      return e;
-
-    });
-    return newData;
-  }
+ 
 
 }
