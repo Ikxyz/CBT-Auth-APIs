@@ -47,6 +47,17 @@ export class Classes {
     });
     return answer;
   }
+
+  removeAnswer(examinationSheet: any):any {
+    examinationSheet.question = examinationSheet.question.map((question:any) => {
+        question.answer = '';
+        return question;
+       });
+    return examinationSheet;
+  }
  
+  generateUid(len:number) {
+    return Math.random().toString(36).substr(2, len);
+  }
 
 }

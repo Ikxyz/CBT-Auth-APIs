@@ -173,11 +173,11 @@ export const getExamById = functions.https.onRequest(async (req, res) => {
         const data = await db.collection('examination').doc(id).get();
         if (data.exists) {
             const output: any = data.data();
-           
+
             output.question = output.question.map((ques: any) => {
                 ques.answer = cls.reCalibrateAnswer(ques.options, ques.answer);
                 return ques;
-             });
+            });
             return res.status(200).send(output);
 
         } else {
@@ -200,12 +200,12 @@ export const getExamById = functions.https.onRequest(async (req, res) => {
 
 
 /**
- *  @getCreateExamSession is a [get_request] request that returns a json data
+ *  @createExamSession is a [get_request] request that returns a json data
  * 
  *  @param  [id] of type [String]
  * 
  */
-export const getCreateExamSession = functions.https.onRequest(async (req, res) => {
+export const createExamSession = functions.https.onRequest(async (req, res) => {
     res.set('Access-Control-Allow-Origin', '*');
 
     const id: string = req.query.id;
@@ -215,21 +215,26 @@ export const getCreateExamSession = functions.https.onRequest(async (req, res) =
         return res.status(400).send({ message: 'request should contain Id', status: 400 });
     try {
         const data = await db.collection('examination').doc(id).get();
-        const session = await db.collection('examinationSession').doc(sessionId).set({
+        const session = {
             id: sessionId,
             //TODO: collect teacher info and validate
             overSite: 'not-set',
-            
+            examinationId: id,
+            student: [],
+            finished: '',
+            startTime: '',
+            pausedTime: [],
 
-        });
+        };
+        await db.collection('examinationSession').doc(sessionId).set(session);
         if (data.exists) {
             const output: any = data.data();
-           
+
             output.question = output.question.map((ques: any) => {
                 ques.answer = '';
                 return ques;
-             });
-            return res.status(200).send({sessionId,data:output});
+            });
+            return res.status(200).send({ data: { session, examSheet: output }, message: "success", status: 200 });
 
         } else {
             return res.status(404).send({ message: 'exam record does not exist', status: 404 });
@@ -243,6 +248,77 @@ export const getCreateExamSession = functions.https.onRequest(async (req, res) =
 });
 
 
+
+/**
+ *  @joinExamSession is a [post_request] request that returns an examinationSheet of json data queried from database by [examinationId] 
+ * 
+ *  @param  [examinationId] of type [String]
+ *  @param  [StudentData] of type [jsonObject]
+ * 
+ * 
+ * {
+ * sessionId:'',
+ * student: {firstName: '', lastName: '', seatId: '',timeStamp: ''},
+ * }
+ * 
+ */
+export const joinExamSession = functions.https.onRequest(async (req, res) => {
+    res.set('Access-Control-Allow-Origin', '*');
+
+    const newSession = req.body;
+
+    if (!newSession)
+        return res.status(400).send({ message: 'request should contain author id', status: 400 });
+
+    try {
+
+        // Get and validate session
+        const result = await db.collection('examinationSession').doc(newSession.sessionId).get();
+        if (!result.exists) {
+            return res.status(404).send({ message: 'examination id does not exist', status: 404 });
+        }
+
+
+        const session: any = result.data();
+        const bat = db.batch();
+        const examinationId = session.examinationId;
+        newSession.student.username = `${newSession.student.firstName}${newSession.student.lastName}${cls.generateUid(5)}`
+
+        // Get ExaminationSheet and secure answers
+        let examSheet = await db.collection('examination').doc(examinationId).get();
+        examSheet = cls.removeAnswer(examSheet.data());
+
+        const studentSessionData = {
+            examinationId: examinationId,
+            sessionId: newSession.sessionId,
+            studentId: newSession.student.username,
+            examinationSheet: examSheet,
+            joinTime: admin.firestore.Timestamp.now(),
+            endTime: '',
+            startTime: '',
+            isEnded: false,
+            publicIp: '',
+            privateIp: '',
+        };
+
+        // Update Examination Student
+        bat.create(db.collection('examinationSession').doc(newSession.sessionId).collection('student').doc(newSession.student.username), { studentInfo: newSession.student, session: studentSessionData });
+
+        // create Student Account
+        bat.create(db.collection('student').doc(newSession.student.username), newSession.student);
+
+        //create copy of examSheet on user profile
+        bat.create(db.collection('student').doc(newSession.student.username).collection('examinationSession').doc(newSession.sessionId),  studentSessionData );
+
+        await bat.commit();
+
+        return res.status(200).send({ data: { student: newSession.student, examinationSheet: examSheet, session: studentSessionData }, status: 200, message: 'success' });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).send({ message: 'server error', status: 500 });
+    }
+
+});
 
 
 
@@ -270,12 +346,12 @@ export const getExamByAuthor = functions.https.onRequest(async (req, res) => {
             _examSheet.question = _examSheet.question.map((ques: any) => {
                 ques.answer = cls.reCalibrateAnswer(ques.options, ques.answer);
                 return ques;
-             });
-           // newExam.question = cls.reCalibrateAnswer(newExam.question);
+            });
+            // newExam.question = cls.reCalibrateAnswer(newExam.question);
             return _examSheet;
         });
         console.info(data);
-        return res.status(200).send({data});
+        return res.status(200).send({ data });
     } catch (err) {
         console.error(err);
         return res.status(500).send({ message: 'server error', status: 500 });
@@ -312,7 +388,7 @@ export const getExamByYear = functions.https.onRequest(async (req, res) => {
         const examArray = await db.collection('examination').where('year', "==", req).get();
         const data = examArray.docs.map((exam) => {
             const newExam = exam.data();
-           // newExam.question = cls.reCalibrateAnswer(newExam.question);
+            // newExam.question = cls.reCalibrateAnswer(newExam.question);
             return newExam;
         });
         console.info(data);
@@ -339,7 +415,7 @@ export const getAllExam = functions.https.onRequest(async (req, res) => {
         const examList = await db.collection('examination').get();
         const data = examList.docs.map((exam) => {
             const newExam = exam.data();
-          //  newExam.question = cls.reCalibrateAnswer(newExam.question);
+            //  newExam.question = cls.reCalibrateAnswer(newExam.question);
             return newExam;
         });
         console.info(data);
