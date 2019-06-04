@@ -350,7 +350,6 @@ export const getExamByAuthor = functions.https.onRequest(async (req, res) => {
             // newExam.question = cls.reCalibrateAnswer(newExam.question);
             return _examSheet;
         });
-        console.info(data);
         return res.status(200).send({ data });
     } catch (err) {
         console.error(err);
